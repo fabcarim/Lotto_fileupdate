@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lotto Tracking Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            background-color: #f5f7fb;
+        }
+        h1 {
+            color: #1d3557;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        input, button {
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background-color: #457b9d;
+            color: white;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #a8dadc;
+            cursor: not-allowed;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 0.5rem;
+            border-bottom: 1px solid #e5e5e5;
+            text-align: left;
+        }
+        .status {
+            margin-top: 1rem;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Lotto Tracking</h1>
+    <p>Minimal UI to trigger refreshes and view the latest shipments.</p>
+
+    <div class="controls">
+        <input id="token" type="password" placeholder="Bearer token" />
+        <button id="refreshBtn">Refresh now</button>
+        <button id="downloadBtn">Download Excel</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Ref Code</th>
+                <th>Status</th>
+                <th>ETA</th>
+                <th>Carrier</th>
+                <th>Customer</th>
+                <th>Last Source</th>
+            </tr>
+        </thead>
+        <tbody id="shipments"></tbody>
+    </table>
+
+    <div class="status" id="status"></div>
+
+    <script>
+        const tokenInput = document.getElementById('token');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusEl = document.getElementById('status');
+        const shipmentsBody = document.getElementById('shipments');
+
+        const apiBase = '';
+
+        async function listShipments() {
+            const response = await fetch(`${apiBase}/shipments`);
+            const data = await response.json();
+            shipmentsBody.innerHTML = data.map((shipment) => `
+                <tr>
+                    <td>${shipment.ref_code}</td>
+                    <td>${shipment.status || ''}</td>
+                    <td>${shipment.eta || ''}</td>
+                    <td>${shipment.carrier || ''}</td>
+                    <td>${shipment.customer || ''}</td>
+                    <td>${shipment.last_source || ''}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function triggerRefresh() {
+            statusEl.textContent = 'Refreshing...';
+            try {
+                const response = await fetch(`${apiBase}/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${tokenInput.value}`,
+                    },
+                });
+                if (!response.ok) throw new Error('Refresh failed');
+                const data = await response.json();
+                statusEl.textContent = `Refreshed at ${new Date(data.refreshed_at).toLocaleString()} - Records: ${data.records_processed}`;
+                await listShipments();
+            } catch (error) {
+                statusEl.textContent = error.message;
+            }
+        }
+
+        async function downloadExcel() {
+            try {
+                const response = await fetch(`${apiBase}/export`, {
+                    headers: {
+                        'Authorization': `Bearer ${tokenInput.value}`,
+                    },
+                });
+                if (!response.ok) throw new Error('Download failed');
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'Master.xlsx';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            } catch (error) {
+                statusEl.textContent = error.message;
+            }
+        }
+
+        refreshBtn.addEventListener('click', triggerRefresh);
+        downloadBtn.addEventListener('click', downloadExcel);
+
+        listShipments();
+    </script>
+</body>
+</html>
